@@ -32,19 +32,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ../data:/data
 
-  frontend:
-    build:
-      context: ../frontend
-    container_name: explab-frontend
-    restart: unless-stopped
-    environment:
-      API_URL: http://backend:8000
-    ports:
-      - "${FRONTEND_PORT}:8501"
-    depends_on:
-      backend:
-        condition: service_started
+#  frontend:
+#    build:
+#      context: ../frontend
+#    container_name: explab-frontend
+#    restart: unless-stopped
+#    environment:
+#      API_URL: http://backend:8000
+#    ports:
+#      - "${FRONTEND_PORT}:8501"
+#    depends_on:
+#      backend:
+#        condition: service_started
 
 volumes:
   pgdata:
