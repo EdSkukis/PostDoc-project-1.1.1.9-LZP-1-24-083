@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import projects
+from .routers import projects, materials, samples, experiments
 
 app = FastAPI(title="Exp Lab Platform API")
 
@@ -15,3 +15,6 @@ app.add_middleware(
 )
 
 app.include_router(projects.router)
+app.include_router(materials.router)
+app.include_router(samples.router)
+app.include_router(experiments.router)
