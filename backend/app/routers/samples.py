@@ -1,31 +1,42 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import Optional
 from ..db import get_db
 from .. import models, schemas
 
 router = APIRouter(prefix="/samples", tags=["samples"])
 
 @router.post("/", response_model=schemas.SampleOut)
-def create_sample(item: schemas.SampleIn, db: Session = Depends(get_db)):
-    # простая валидация ссылок
-    if not db.query(models.Project).get(item.project_id):
-        raise HTTPException(400, "project_id not found")
-    if item.material_ref_type == "material":
-        if not db.query(models.Material).get(item.material_ref_id):
-            raise HTTPException(400, "material_ref_id not found in materials")
-    elif item.material_ref_type == "material_component":
-        if not db.query(models.MaterialComponent).get(item.material_ref_id):
-            raise HTTPException(400, "material_ref_id not found in material_components")
+def create_sample(
+    payload: Optional[schemas.SampleIn] = None,
+    project_id: Optional[int] = Query(None),
+    material_id: Optional[int] = Query(None),
+    sample_code: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    if payload:
+        prj_id, mat_id, sc = payload.project_id, payload.material_id, payload.sample_code
+    else:
+        if not (project_id and material_id):
+            raise HTTPException(400, "Provide JSON body {project_id,material_id[,sample_code]} or query params")
+        prj_id, mat_id, sc = project_id, material_id, sample_code
 
-    obj = models.Sample(
-        project_id=item.project_id,
-        material_ref_id=item.material_ref_id,
-        material_ref_type=item.material_ref_type,
-        sample_code=item.sample_code,
-    )
+    if not db.query(models.Project).get(prj_id):
+        raise HTTPException(400, "project_id not found")
+    if not db.query(models.Material).get(mat_id):
+        raise HTTPException(400, "material_id not found")
+
+    obj = models.Sample(project_id=prj_id, material_id=mat_id, sample_code=sc)
     db.add(obj); db.commit(); db.refresh(obj)
     return obj
 
 @router.get("/", response_model=list[schemas.SampleOut])
-def list_samples(db: Session = Depends(get_db)):
-    return db.query(models.Sample).all()
+def list_samples(
+    project_id: Optional[int] = Query(None),
+    material_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    q = db.query(models.Sample)
+    if project_id: q = q.filter(models.Sample.project_id == project_id)
+    if material_id: q = q.filter(models.Sample.material_id == material_id)
+    return q.all()

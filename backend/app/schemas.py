@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import Optional
 
 class ProjectIn(BaseModel):
     code: str
@@ -15,8 +15,7 @@ class MaterialOut(MaterialIn):
 
 class SampleIn(BaseModel):
     project_id: int
-    material_ref_id: int
-    material_ref_type: Literal["material","material_component"]
+    material_id: int
     sample_code: Optional[str] = None
 class SampleOut(SampleIn):
     sample_id: int
