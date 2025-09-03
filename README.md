@@ -4,16 +4,17 @@
 
 ---
 
-## Review
-Objective: end-to-end pipeline from experiments → DB → external data search → DB → model training → prediction of durability of polymers and composites during aging.
+## Overview
+This project builds a full pipeline from experimental data to machine learning predictions of polymer/composite durability under environmental aging.
 
 ```mermaid
 flowchart LR
-  A[Raw experiments (Excel)] --> B[scripts/tensile batch_tensile.py]
-  B --> C[Out files (CSV, Excel, PNG, HTML)]
+  A[Raw experiments] --> B[Tensile scripts]
+  B --> C[Reports & Plots]
   B --> D[(Database)]
-  E[External data (articles, repos)] --> F[Parsing / ingestion]
+  E[External datasets] --> F[Ingestion]
   F --> D
-  D --> G[ML QSPR-SMILES training]
+  D --> G[ML QSPR-SMILES]
   G --> H[Predictions]
-  H --> I[Backend API] --> J[Frontend UI]
+  H --> I[Backend API]
+  I --> J[Frontend UI]
