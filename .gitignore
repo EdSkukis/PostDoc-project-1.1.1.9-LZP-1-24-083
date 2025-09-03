@@ -1,0 +1,26 @@
+# Raw experimental data
+data/*
+!data/.gitkeep
+!data/overrides.csv
+
+# Output files (reports, plots, etc.)
+out/*
+!out/.gitkeep
+
+# Python cache / virtual env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.egg-info/
+.venv/
+env/
+venv/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
