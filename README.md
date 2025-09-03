@@ -9,11 +9,11 @@ Objective: end-to-end pipeline from experiments → DB → external data search 
 
 ```mermaid
 flowchart LR
-  A[Raw experiments<br>(Excel .xls/.xlsx)] --> B[scripts/tensile/batch_tensile.py<br>очистка, метрики, графики]
-  B --> C[out/*<br>Combined.csv, Summary.csv, Report.xlsx, PNG, HTML]
-  B --> D[(DB)]
-  E[Внешние данные<br>статьи, репозитории] --> F[Парсинг/ингест]
+  A[Raw experiments (Excel)] --> B[scripts/tensile batch_tensile.py]
+  B --> C[Out files (CSV, Excel, PNG, HTML)]
+  B --> D[(Database)]
+  E[External data (articles, repos)] --> F[Parsing / ingestion]
   F --> D
-  D --> G[ML/QSPR-SMILES обучение]
-  G --> H[Предсказания/аналитика]
-  H --> I[backend API] --> J[frontend UI]
+  D --> G[ML QSPR-SMILES training]
+  G --> H[Predictions]
+  H --> I[Backend API] --> J[Frontend UI]
