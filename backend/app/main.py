@@ -5,7 +5,7 @@ from .routers import projects, materials, samples, experiments
 
 app = FastAPI(title="Exp Lab Platform API")
 
-# origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",")]
+origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",")]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins if origins != ["*"] else ["*"],

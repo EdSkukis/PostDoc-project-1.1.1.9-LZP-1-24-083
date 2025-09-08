@@ -282,15 +282,19 @@ def estimate_E(df: pd.DataFrame, window: Tuple[float, float] = E_STRAIN_WINDOW, 
     return float(m)
 
 
-def proof_stress_rp02(df: pd.DataFrame, E_MPa: float, offset: float = PROOF_OFFSET) -> tuple[float, float]:
-    """Find Rp0.2 (MPa) and ε at intersection of σ(ε) with the offset line."""
+def proof_stress_rp02(df: pd.DataFrame, E_MPa: float, offset: float = PROOF_OFFSET) -> tuple[float, float, float]:
+    """
+    Find Rp0.2 (MPa), strain at Rp0.2, and corresponding Time_s (s).
+    """
     if not np.isfinite(E_MPa) or E_MPa <= 0:
-        return float("nan"), float("nan")
-    # function f(ε) = σ(ε) - E*(ε - offset)
+        return float("nan"), float("nan"), float("nan")
+
     eps = df["Strain"].to_numpy(dtype=float)
     sig = df["Stress_MPa"].to_numpy(dtype=float)
+    time = df["Time_s"].to_numpy(dtype=float) if "Time_s" in df.columns else np.full_like(eps, np.nan)
+
     g = sig - E_MPa * (eps - offset)
-    # look for a change in sign and interpolate
+
     for i in range(1, len(g)):
         if np.sign(g[i-1]) == np.sign(g[i]):
             continue
@@ -298,8 +302,10 @@ def proof_stress_rp02(df: pd.DataFrame, E_MPa: float, offset: float = PROOF_OFFS
         t = abs(g[i-1]) / (abs(g[i-1]) + abs(g[i]))
         e = (1 - t) * eps[i-1] + t * eps[i]
         s = (1 - t) * sig[i-1] + t * sig[i]
-        return float(s), float(e)
-    return float("nan"), float("nan")
+        ts = (1 - t) * time[i-1] + t * time[i]
+        return float(s), float(e), float(ts)
+
+    return float("nan"), float("nan"), float("nan")
 
 
 def hollomon_true(df_true: pd.DataFrame, E_MPa: float, window: Tuple[float, float] = HOLL_WINDOW) -> tuple[float, float]:
@@ -346,7 +352,7 @@ def plot_sigma_epsilon(df: pd.DataFrame, out_png: Path, E_MPa: float | None = No
 
     # Rp0.2 and offset line
     if rp02 and all(np.isfinite(rp02)):
-        s02, e02 = rp02
+        s02, e02, _ = rp02
         ax.axhline(s02, ls="--", color="grey", alpha=0.6)
         ax.axvline(e02, ls="--", color="grey", alpha=0.6)
         ax.annotate(f"Rp0.2={s02:.2f} MPa", xy=(e02, s02), xytext=(5,-15), textcoords="offset points")
@@ -456,6 +462,7 @@ def process_file(path: Path, overrides: Dict[str, float]) -> tuple[pd.DataFrame,
         "E_MPa": E_MPa,
         "Rp0.2_MPa": rp02[0] if rp02 and np.isfinite(rp02[0]) else float("nan"),
         "Strain_at_Rp0.2": rp02[1] if rp02 and np.isfinite(rp02[1]) else float("nan"),
+        "Time_at_Rp0.2_s": rp02[2] if np.isfinite(rp02[2]) else float("nan"),
         "Sigma_max_MPa": sig_max,
         "Strain_at_Sigmax": eps_at,
         "FailureTime_s": t_fail,
