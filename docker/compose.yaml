@@ -11,7 +11,7 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data_epoxy
       - ../db:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -33,7 +33,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ../data:/data
+      - ../data_epoxy:/data_epoxy
 
 #  frontend:
 #    build:

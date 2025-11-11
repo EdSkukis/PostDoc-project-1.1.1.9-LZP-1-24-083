@@ -122,7 +122,7 @@ def main():
     # Assemble and clean
     dat = pd.DataFrame({"X": Xs, "Y": Ys, "L": Ls}).replace([np.inf, -np.inf], np.nan).dropna()
     if dat.empty:
-        raise SystemExit("No data to plot after cleaning. Check transforms and positivity.")
+        raise SystemExit("No data_epoxy to plot after cleaning. Check transforms and positivity.")
 
     # Plot
     plt.figure(figsize=(7, 5))
@@ -168,7 +168,7 @@ def main():
         dat_out = dat.copy()
         dat_out.columns = [args.x, args.y, args.legend]
         dat_out.to_csv(args.outcsv, index=False)
-        print(f"Saved data: {args.outcsv}")
+        print(f"Saved data_epoxy: {args.outcsv}")
 
 if __name__ == "__main__":
     main()

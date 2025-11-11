@@ -1,4 +1,4 @@
-# Raw experimental data
+# Raw experimental data_epoxy
 scripts/tensile/data/*
 !scripts/tensile/data/.gitkeep
 !scripts/tensile/data/overrides.csv
