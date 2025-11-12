@@ -349,7 +349,7 @@ def plot_overlay_html_grouped(curves: List[Tuple[str, str, pd.DataFrame]], out_p
                 buttons=buttons
             )
         ],
-        title="3PB Stress–Strain Overlay (interactive, grouped)",
+        title="3pB Stress–Strain",
         xaxis_title="Strain [-]",
         yaxis_title="Stress [MPa]",
         template="simple_white",
@@ -528,7 +528,7 @@ def process_folder(folder: str, info_csv_name_substr: str = "info") -> dict:
 
 
 def main() -> None:
-    folder = "./mnt/data_epoxy"
+    folder = "./mnt/data_gf"
     result = process_folder(folder)
     print(result)
 
