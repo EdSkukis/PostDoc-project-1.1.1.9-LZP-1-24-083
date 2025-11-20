@@ -1,6 +1,7 @@
 import os
-import pandas as pd
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
 
 from src.config import (
     MODEL_DIR,
@@ -11,7 +12,7 @@ from src.config import (
     RANDOM_STATE,
 )
 from src.data_loader import load_polymers_dataset
-from src.models.multi_task import build_multi_task_pipeline
+from src.models.multi_task import build_multi_task_pipeline, build_preprocessor
 from src.training.evaluation import (
     evaluate_regression,
     evaluate_classification,
@@ -21,15 +22,34 @@ from src.training.evaluation import (
 import joblib
 
 
-def run_cv(pipeline, X, y_class):
+def run_cv(X, y_class):
     """
-    K-fold CV по классификации (PolymerClass), для контроля качества.
+    K-fold CV только для классификации PolymerClass
+    с тем же препроцессором, но отдельным классификатором.
     """
-    cv = StratifiedKFold(
-        n_splits=N_SPLITS_CV, shuffle=True, random_state=RANDOM_STATE
+    preprocessor = build_preprocessor()
+
+    clf = RandomForestClassifier(
+        n_estimators=300,
+        random_state=RANDOM_STATE,
+        n_jobs=-1,
     )
+
+    cv_pipeline = Pipeline(
+        steps=[
+            ("preprocess", preprocessor),
+            ("clf", clf),
+        ]
+    )
+
+    cv = StratifiedKFold(
+        n_splits=N_SPLITS_CV,
+        shuffle=True,
+        random_state=RANDOM_STATE,
+    )
+
     scores = cross_val_score(
-        pipeline,
+        cv_pipeline,
         X,
         y_class,
         cv=cv,
@@ -40,11 +60,14 @@ def run_cv(pipeline, X, y_class):
 
 
 def train_and_evaluate():
-    df = load_polymers_dataset()
+    df = load_polymers_dataset(min_samples_per_class=10, debug=False)
 
     # Логика: X = SMILES, y = [Tg, PolymerClass]
     X = df[["SMILES"]]  # DataFrame с одной колонкой
     y = df[["Tg", "PolymerClass"]]
+
+    print("X shape:", X.shape)
+    print("y shape:", y.shape)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X,
@@ -57,7 +80,7 @@ def train_and_evaluate():
     pipeline = build_multi_task_pipeline()
 
     if DO_CV:
-        cv_mean, cv_std = run_cv(pipeline, X_train, y_train["PolymerClass"])
+        cv_mean, cv_std = run_cv(X_train, y_train["PolymerClass"])
         print(f"CV (F1_weighted, PolymerClass): {cv_mean:.3f} ± {cv_std:.3f}")
 
     print("Fitting multi-task model (Tg + PolymerClass)...")

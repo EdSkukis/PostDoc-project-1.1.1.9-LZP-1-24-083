@@ -9,6 +9,6 @@ FP_N_BITS = 2048
 FP_RADIUS = 2
 
 # Флаг: делать ли k-fold CV (можно отключить для ускорения)
-DO_CV = True
+DO_CV = False
 N_SPLITS_CV = 5
 RANDOM_STATE = 42

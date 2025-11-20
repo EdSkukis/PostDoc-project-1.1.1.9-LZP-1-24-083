@@ -38,6 +38,6 @@ class DescriptorFeaturizer(BaseEstimator, TransformerMixin):
         return [mw, logp, hbd, hba]
 
     def transform(self, X):
-        smiles_list = list(X)
-        descs = [self._calc_descriptors(s) for s in smiles_list]
+        arr = np.asarray(X).ravel()
+        descs = [self._calc_descriptors(s) for s in arr]
         return np.array(descs, dtype=np.float32)
