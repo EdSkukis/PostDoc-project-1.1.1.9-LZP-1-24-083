@@ -1,5 +1,3 @@
-# src/models/multi_task.py
-
 import numpy as np
 import pandas as pd
 
@@ -9,16 +7,16 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem, Descriptors, Crippen, Lipinski
+from rdkit.Chem import AllChem
 
 from src.config import FP_N_BITS, FP_RADIUS
+from src.featurizers.rdkit_descriptors import calc_descriptor_vector
 
 
 class CombinedSmilesFeaturizer(BaseEstimator, TransformerMixin):
     """
     Один трансформер:
       SMILES -> [Morgan FP | scaled RDKit descriptors]
-    Чтобы не ловить расхождения форм в ColumnTransformer.
     """
 
     def __init__(self, n_bits=2048, radius=2, remove_asterisk=True):
@@ -50,15 +48,13 @@ class CombinedSmilesFeaturizer(BaseEstimator, TransformerMixin):
         DataStructs.ConvertToNumpyArray(fp, arr)
         return arr
 
+
     def _mol_to_descriptors(self, mol):
-        # MolWt, LogP, HBD, HBA
-        if mol is None:
-            return [0.0, 0.0, 0.0, 0.0]
-        mw = Descriptors.MolWt(mol)
-        logp = Crippen.MolLogP(mol)
-        hbd = Lipinski.NumHDonors(mol)
-        hba = Lipinski.NumHAcceptors(mol)
-        return [mw, logp, hbd, hba]
+        """
+        Обёртка над calc_descriptor_vector, чтобы код был единообразным.
+        """
+        return calc_descriptor_vector(mol)
+
 
     def _extract_smiles_array(self, X):
         """
@@ -82,10 +78,9 @@ class CombinedSmilesFeaturizer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         smiles = self._extract_smiles_array(X)
         mols = [self._smiles_to_mol(s) for s in smiles]
-        descs = np.array(
-            [self._mol_to_descriptors(m) for m in mols],
-            dtype=np.float32,
-        )
+
+        # дескрипторы как np.array [n_samples, n_desc]
+        descs = np.vstack([self._mol_to_descriptors(m) for m in mols])
         # обучаем scaler только на дескрипторах
         self.scaler_.fit(descs)
         return self
@@ -95,13 +90,9 @@ class CombinedSmilesFeaturizer(BaseEstimator, TransformerMixin):
         mols = [self._smiles_to_mol(s) for s in smiles]
 
         fps = np.vstack([self._mol_to_fp(m) for m in mols]).astype(np.float32)
-        descs = np.array(
-            [self._mol_to_descriptors(m) for m in mols],
-            dtype=np.float32,
-        )
+        descs = np.vstack([self._mol_to_descriptors(m) for m in mols]).astype(np.float32)
         descs_scaled = self.scaler_.transform(descs)
 
-        # итоговые фичи
         features = np.hstack([fps, descs_scaled])
         return features
 
