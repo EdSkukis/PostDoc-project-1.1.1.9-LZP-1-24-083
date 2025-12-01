@@ -7,6 +7,11 @@ from src.config import MODEL_DIR, MODEL_FILENAME
 
 def main():
     model_path = os.path.join(MODEL_DIR, MODEL_FILENAME)
+    if not os.path.exists(model_path):
+        print(f"Model file not found at {model_path}")
+        print("Please train the model first by running: python scripts/train_multi_task.py")
+        return
+
     pipeline = joblib.load(model_path)
 
     # Пример новых полимеров:

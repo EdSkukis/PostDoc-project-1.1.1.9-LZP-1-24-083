@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 
-from src.config import FP_N_BITS, FP_RADIUS
+from src.config import FP_N_BITS, FP_RADIUS, N_ESTIMATORS, MODEL_RANDOM_STATE
 from src.featurizers.rdkit_descriptors import calc_descriptor_vector
 
 
@@ -107,13 +107,13 @@ class MultiOutputModel(BaseEstimator):
     def __init__(self, regressor=None, classifier=None):
         if regressor is None:
             regressor = RandomForestRegressor(
-                n_estimators=300,
-                random_state=42,
+                n_estimators=N_ESTIMATORS,
+                random_state=MODEL_RANDOM_STATE,
             )
         if classifier is None:
             classifier = RandomForestClassifier(
-                n_estimators=300,
-                random_state=42,
+                n_estimators=N_ESTIMATORS,
+                random_state=MODEL_RANDOM_STATE,
             )
 
         self.regressor = regressor
