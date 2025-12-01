@@ -1,7 +1,8 @@
 import os
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.metrics import f1_score
+import numpy as np
+import pandas as pd
 
 from src.config import (
     MODEL_DIR,
@@ -11,57 +12,49 @@ from src.config import (
     N_SPLITS_CV,
     RANDOM_STATE,
 )
-from src.data_loader import load_polymers_dataset
-from src.models.multi_task import build_multi_task_pipeline, build_preprocessor
-from src.training.evaluation import (
+from src.data_loader import load_polymers_dataset, process_and_save_smiles
+from src.models.multi_task import build_multi_task_pipeline
+from src.evaluation.metrics import (
     evaluate_regression,
     evaluate_classification,
     save_confusion_matrix,
 )
+from src.visualization.smiles_quality import plot_smiles_quality_stats
 
 import joblib
 
 
-def run_cv(X, y_class):
+def run_cv(pipeline, X, y, cv):
     """
-    K-fold CV только для классификации PolymerClass
-    с тем же препроцессором, но отдельным классификатором.
+    K-fold CV for the entire multi-task pipeline.
+    Evaluates the F1 score for the classification task.
     """
-    preprocessor = build_preprocessor()
+    f1_scores = []
+    for train_idx, val_idx in cv.split(X, y['PolymerClass']):
+        X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
+        X_val, y_val = X.iloc[val_idx], y.iloc[val_idx]
 
-    clf = RandomForestClassifier(
-        n_estimators=300,
-        random_state=RANDOM_STATE,
-        n_jobs=-1,
-    )
+        pipeline.fit(X_train, y_train)
+        y_pred = pipeline.predict(X_val)
 
-    cv_pipeline = Pipeline(
-        steps=[
-            ("preprocess", preprocessor),
-            ("clf", clf),
-        ]
-    )
+        f1 = f1_score(y_val['PolymerClass'], y_pred['PolymerClass_pred'], average='weighted')
+        f1_scores.append(f1)
 
-    cv = StratifiedKFold(
-        n_splits=N_SPLITS_CV,
-        shuffle=True,
-        random_state=RANDOM_STATE,
-    )
-
-    scores = cross_val_score(
-        cv_pipeline,
-        X,
-        y_class,
-        cv=cv,
-        scoring="f1_weighted",
-        n_jobs=-1,
-    )
-    return scores.mean(), scores.std()
+    return np.mean(f1_scores), np.std(f1_scores)
 
 
-def train_and_evaluate():
-    df = load_polymers_dataset(min_samples_per_class=10, debug=False)
+def train_and_evaluate(min_samples_per_class: int = 10):
+    df = load_polymers_dataset(debug=False)
+    _, df_valid_final, _, _ = process_and_save_smiles(df)
 
+    # Apply min_samples_per_class filtering after SMILES processing
+    if min_samples_per_class > 1:
+        counts = df_valid_final["PolymerClass"].value_counts()
+        valid_classes = counts[counts >= min_samples_per_class].index
+        df_valid_final = df_valid_final[df_valid_final["PolymerClass"].isin(valid_classes)]
+        print(f"Shape after filtering by min_samples_per_class={min_samples_per_class}:", df_valid_final.shape)
+
+    df = df_valid_final
     # Логика: X = SMILES, y = [Tg, PolymerClass]
     X = df[["SMILES"]]  # DataFrame с одной колонкой
     y = df[["Tg", "PolymerClass"]]
@@ -80,20 +73,21 @@ def train_and_evaluate():
     pipeline = build_multi_task_pipeline()
 
     if DO_CV:
-        cv_mean, cv_std = run_cv(X_train, y_train["PolymerClass"])
+        cv = StratifiedKFold(
+            n_splits=N_SPLITS_CV,
+            shuffle=True,
+            random_state=RANDOM_STATE,
+        )
+        cv_mean, cv_std = run_cv(pipeline, X_train, y_train, cv)
         print(f"CV (F1_weighted, PolymerClass): {cv_mean:.3f} ± {cv_std:.3f}")
 
     print("Fitting multi-task model (Tg + PolymerClass)...")
     pipeline.fit(X_train, y_train)
 
     # Инференс на тесте
-    # Удобнее отдельно получить предсказания из "multi" шага
-    preprocess = pipeline.named_steps["preprocess"]
-    multi = pipeline.named_steps["multi"]
-    X_test_trans = preprocess.transform(X_test)
-
-    Tg_pred = multi.predict_regression(X_test_trans)
-    class_pred = multi.predict_class(X_test_trans)
+    y_pred = pipeline.predict(X_test)
+    Tg_pred = y_pred["Tg_pred"]
+    class_pred = y_pred["PolymerClass_pred"]
 
     # Оценка Tg
     reg_metrics = evaluate_regression(y_test["Tg"], Tg_pred)
@@ -109,6 +103,7 @@ def train_and_evaluate():
     # Матрица ошибок
     os.makedirs(MODEL_DIR, exist_ok=True)
     cm_path = os.path.join(MODEL_DIR, CONFUSION_MATRIX_FIG)
+    multi = pipeline.named_steps["multi"]
     save_confusion_matrix(clf_metrics["cm"], labels=multi.classifier.classes_, out_path=cm_path)
     print(f"Confusion matrix saved to: {cm_path}")
 
@@ -116,7 +111,3 @@ def train_and_evaluate():
     model_path = os.path.join(MODEL_DIR, MODEL_FILENAME)
     joblib.dump(pipeline, model_path)
     print(f"Model saved to: {model_path}")
-
-
-if __name__ == "__main__":
-    train_and_evaluate()

@@ -132,12 +132,6 @@ class MultiOutputModel(BaseEstimator):
             {"Tg_pred": Tg_pred, "PolymerClass_pred": class_pred}
         )
 
-    def predict_regression(self, X):
-        return self.regressor.predict(X)
-
-    def predict_class(self, X):
-        return self.classifier.predict(X)
-
 
 def build_preprocessor():
     """
