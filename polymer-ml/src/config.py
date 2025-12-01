@@ -18,3 +18,10 @@ RANDOM_STATE = 42
 N_ESTIMATORS = 300
 MODEL_RANDOM_STATE = 42
 
+# Параметры для TensorFlow
+TF_MODEL_DIR = "models_artifacts/tensorflow"
+TF_MODEL_FILENAME = "tf_multi_output_polymer_model.keras"
+EPOCHS = 20
+BATCH_SIZE = 32
+
+
