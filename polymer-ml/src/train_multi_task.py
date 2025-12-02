@@ -1,5 +1,6 @@
 import os
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from src.models.analysis_feature import explain_top_fingerprint_bits
 from sklearn.metrics import f1_score
 import numpy as np
 import pandas as pd
@@ -139,3 +140,12 @@ def train_and_evaluate(min_samples_per_class: int = 10):
 
     # Показываем важность фич
     show_feature_importances(pipeline)
+
+    df_bits = explain_top_fingerprint_bits(
+        pipeline=pipeline,
+        df=df_valid_final,
+        smiles_col="SMILES_clean",
+        top_n=10,
+        out_dir="fp_bit_explanations",
+        max_examples_per_bit=5,
+    )
