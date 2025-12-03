@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 from rdkit import Chem, RDLogger
 from src.config import SMILES_CHECK_DIR
 
-RDLogger.DisableLog("rdApp.*")  # глушим спам RDKit
+# RDLogger.DisableLog("rdApp.*")  # глушим спам RDKit
 
 
 def _try_parse_smiles(s: str):
@@ -128,6 +128,7 @@ def process_and_save_smiles(df: pd.DataFrame, output_dir: str = SMILES_CHECK_DIR
     df["Quality_raw"] = qualities
     df["Quality_reason"] = reasons
 
+    print(df.head())
     # 2) Сохраняем "сырые" три файла (как было изначально)
     raw_valid = df[df["Quality_raw"] == "valid"].copy()
     raw_fixable = df[df["Quality_raw"] == "fixable"].copy()
@@ -223,7 +224,6 @@ def load_polymers_dataset(debug: bool = False):
         print(f"[DEBUG] Using CSV file: {csv_file}")
 
     df = pd.read_csv(csv_file)
-
     # 1) Нормализация имён колонок
     df.columns = (
         df.columns
