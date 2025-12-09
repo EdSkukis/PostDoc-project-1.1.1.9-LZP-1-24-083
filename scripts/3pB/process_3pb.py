@@ -631,7 +631,7 @@ def process_folder(folder: str, info_csv_name_substr: str = "info") -> dict:
 
 def main() -> None:
     # Per your request: fixed relative folder
-    folder = ("./mnt/data_epoxy")
+    folder = ("./mnt/G")
     if not os.path.isdir(folder):
         raise FileNotFoundError(f"Data folder not found: {os.path.abspath(folder)}")
     result = process_folder(folder)
