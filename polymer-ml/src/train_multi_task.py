@@ -1,5 +1,6 @@
 import os
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from src.models.analysis_feature import explain_top_fingerprint_bits
 from sklearn.metrics import f1_score
 import numpy as np
 import pandas as pd
@@ -11,6 +12,7 @@ from src.config import (
     DO_CV,
     N_SPLITS_CV,
     RANDOM_STATE,
+    FP_N_BITS,
 )
 from src.data_loader import load_polymers_dataset, process_and_save_smiles
 from src.models.multi_task import build_multi_task_pipeline
@@ -43,8 +45,32 @@ def run_cv(pipeline, X, y, cv):
     return np.mean(f1_scores), np.std(f1_scores)
 
 
+def show_feature_importances(pipeline, top_n=10):
+    """
+    Показывает наиболее важные фичи для регрессора Tg.
+    """
+    print("\n--- Top-10 Feature Importances (Tg regressor) ---")
+    regressor = pipeline.named_steps["multi"].regressor
+    importances = regressor.feature_importances_
+
+    # Отделяем фингерпринты от дескрипторов
+    fp_importances = importances[:FP_N_BITS]
+    
+    indices = np.argsort(fp_importances)[::-1]
+
+    print(f"Top {top_n} most important fingerprint bits for Tg prediction:")
+    for i in range(top_n):
+        bit_idx = indices[i]
+        importance = fp_importances[bit_idx]
+        print(f"  - Bit {bit_idx}: {importance:.4f}")
+
+
 def train_and_evaluate(min_samples_per_class: int = 10):
     df = load_polymers_dataset(debug=False)
+    if df.empty:
+        print("Dataset could not be loaded. Exiting.")
+        return
+        
     _, df_valid_final, _, _ = process_and_save_smiles(df)
 
     # Apply min_samples_per_class filtering after SMILES processing
@@ -111,3 +137,15 @@ def train_and_evaluate(min_samples_per_class: int = 10):
     model_path = os.path.join(MODEL_DIR, MODEL_FILENAME)
     joblib.dump(pipeline, model_path)
     print(f"Model saved to: {model_path}")
+
+    # Показываем важность фич
+    show_feature_importances(pipeline)
+
+    df_bits = explain_top_fingerprint_bits(
+        pipeline=pipeline,
+        df=df_valid_final,
+        smiles_col="SMILES_clean",
+        top_n=10,
+        out_dir="fp_bit_explanations",
+        max_examples_per_bit=5,
+    )

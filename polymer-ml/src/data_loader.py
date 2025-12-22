@@ -3,7 +3,9 @@ import pandas as pd
 import kagglehub
 from typing import Optional, Tuple
 from rdkit import Chem, RDLogger
-RDLogger.DisableLog("rdApp.*")  # глушим спам RDKit
+from src.config import SMILES_CHECK_DIR
+
+# RDLogger.DisableLog("rdApp.*")  # глушим спам RDKit
 
 
 def _try_parse_smiles(s: str):
@@ -112,7 +114,7 @@ def fix_smiles(smi: str) -> Tuple[Optional[str], str]:
     # 7) Если всё ещё невалидно — возвращаем None
     return None, "cannot_fix:" + ",".join(applied_fixes) if applied_fixes else "cannot_fix_no_pattern"
 
-def process_and_save_smiles(df: pd.DataFrame, output_dir: str = "./smiles_check"):
+def process_and_save_smiles(df: pd.DataFrame, output_dir: str = SMILES_CHECK_DIR):
     os.makedirs(output_dir, exist_ok=True)
 
     # 1) Классификация исходных SMILES
@@ -126,6 +128,7 @@ def process_and_save_smiles(df: pd.DataFrame, output_dir: str = "./smiles_check"
     df["Quality_raw"] = qualities
     df["Quality_reason"] = reasons
 
+    print(df.head())
     # 2) Сохраняем "сырые" три файла (как было изначально)
     raw_valid = df[df["Quality_raw"] == "valid"].copy()
     raw_fixable = df[df["Quality_raw"] == "fixable"].copy()
@@ -195,16 +198,6 @@ def process_and_save_smiles(df: pd.DataFrame, output_dir: str = "./smiles_check"
     return df, final_valid, final_invalid, recovered
 
 
-# def _is_valid_smiles(s: str, remove_asterisk: bool = True) -> bool:
-#     if s is None:
-#         return False
-#     s = str(s)
-#     if remove_asterisk:
-#         s = s.replace("*", "")
-#     mol = Chem.MolFromSmiles(s)
-#     return mol is not None
-
-
 def load_polymers_dataset(debug: bool = False):
     """
     Загружает датасет с KaggleHub, нормализует названия колонок,
@@ -212,10 +205,14 @@ def load_polymers_dataset(debug: bool = False):
     """
     if debug:
         print("[DEBUG] Downloading dataset from KaggleHub...")
-
-    dataset_path = kagglehub.dataset_download(
-        "linyeping/extra-dataset-with-smilestgpidpolimers-class"
-    )
+    
+    try:
+        dataset_path = kagglehub.dataset_download(
+            "linyeping/extra-dataset-with-smilestgpidpolimers-class"
+        )
+    except Exception as e:
+        print(f"Error downloading dataset from KaggleHub: {e}")
+        return pd.DataFrame() # Return empty dataframe on error
 
     csv_files = [f for f in os.listdir(dataset_path) if f.endswith(".csv")]
     if not csv_files:
@@ -227,7 +224,6 @@ def load_polymers_dataset(debug: bool = False):
         print(f"[DEBUG] Using CSV file: {csv_file}")
 
     df = pd.read_csv(csv_file)
-
     # 1) Нормализация имён колонок
     df.columns = (
         df.columns

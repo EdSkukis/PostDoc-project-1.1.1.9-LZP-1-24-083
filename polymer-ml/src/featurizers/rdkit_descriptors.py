@@ -1,77 +1,58 @@
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import Descriptors, Crippen, Lipinski, rdMolDescriptors
 
+# Define a standard list of descriptor functions
+DESCRIPTOR_FUNCTIONS: List[Callable[[Chem.Mol], float]] = [
+    Descriptors.MolWt,
+    Crippen.MolLogP,
+    Descriptors.MolMR,
+    Descriptors.TPSA,
+    Lipinski.NumHDonors,
+    Lipinski.NumHAcceptors,
+    Lipinski.NumRotatableBonds,
+    rdMolDescriptors.CalcFractionCSP3,
+    Descriptors.RingCount,
+    Lipinski.NumAromaticRings,
+    rdMolDescriptors.CalcNumHeteroatoms,
+    rdMolDescriptors.CalcHallKierAlpha,
+    rdMolDescriptors.CalcKappa1,
+    rdMolDescriptors.CalcKappa2,
+    rdMolDescriptors.CalcKappa3,
+    Descriptors.NumValenceElectrons,
+]
+
+# The length of the descriptor vector is now determined dynamically
+NUM_DESCRIPTORS = len(DESCRIPTOR_FUNCTIONS)
+
 
 def calc_descriptor_vector(mol: Optional[Chem.Mol]) -> np.ndarray:
     """
-    Возвращает вектор дескрипторов для молекулы RDKit.
-    Если mol is None, возвращает вектор нулей той же длины.
+    Returns a descriptor vector for an RDKit molecule.
+    If mol is None or an error occurs, it returns a zero vector of the correct length.
 
-    Набор дескрипторов подобран для QSPR:
-      - размер / масса
-      - полярность / липофильность
-      - гибкость
-      - насыщенность
-      - цикличность / ароматичность
-      - форма / топология
+    The set of descriptors is chosen for QSPR:
+      - size / mass
+      - polarity / lipophilicity
+      - flexibility
+      - saturation
+      - cyclicity / aromaticity
+      - shape / topology
     """
     if mol is None:
-        # ОБЯЗАТЕЛЬНО: длина этого списка должна совпадать с числом дескрипторов ниже
-        return np.zeros(16, dtype=np.float32)
+        return np.zeros(NUM_DESCRIPTORS, dtype=np.float32)
 
     try:
-        # 1) базовые физико-химические свойства
-        mw = Descriptors.MolWt(mol)                    # молекулярная масса
-        logp = Crippen.MolLogP(mol)                    # логP (липофильность)
-        mr = Descriptors.MolMR(mol)                    # молярная рефрактивность
-        tpsa = Descriptors.TPSA(mol)                   # полярная поверхность
-
-        # 2) HBD/HBA, гибкость
-        hbd = Lipinski.NumHDonors(mol)                 # доноры H-связей
-        hba = Lipinski.NumHAcceptors(mol)              # акцепторы H-связей
-        rot_bonds = Lipinski.NumRotatableBonds(mol)    # вращаемые связи
-
-        # 3) насыщенность / ароматичность / цикличность
-        frac_csp3 = rdMolDescriptors.CalcFractionCSP3(mol)   # доля sp3-углеродов
-        ring_count = Descriptors.RingCount(mol)              # все кольца
-        arom_rings = Lipinski.NumAromaticRings(mol)          # ароматические кольца
-        hetero_atoms = rdMolDescriptors.CalcNumHeteroatoms(mol)  # гетероатомы
-
-        # 4) топологические дескрипторы Kier & Hall
-        hall_kier_alpha = rdMolDescriptors.CalcHallKierAlpha(mol)
-        kappa1 = rdMolDescriptors.CalcKappa1(mol)
-        kappa2 = rdMolDescriptors.CalcKappa2(mol)
-        kappa3 = rdMolDescriptors.CalcKappa3(mol)
-
-        # 5) валентные электроны
-        val_electrons = Descriptors.NumValenceElectrons(mol)
-
-        desc = np.array(
-            [
-                mw,
-                logp,
-                mr,
-                tpsa,
-                hbd,
-                hba,
-                rot_bonds,
-                frac_csp3,
-                ring_count,
-                arom_rings,
-                hetero_atoms,
-                hall_kier_alpha,
-                kappa1,
-                kappa2,
-                kappa3,
-                val_electrons,
-            ],
-            dtype=np.float32,
-        )
-        return desc
+        desc = [func(mol) for func in DESCRIPTOR_FUNCTIONS]
+        desc_np = np.array(desc, dtype=np.float32)
+        
+        # Replace non-finite values (NaN, inf) with 0.0
+        desc_np[~np.isfinite(desc_np)] = 0.0
+        
+        return desc_np
 
     except Exception:
-        # На всякий случай: если RDKit где-то упал — вернём нули
-        return np.zeros(16, dtype=np.float32)
+        # In case of any other RDKit error, return a zero vector
+        return np.zeros(NUM_DESCRIPTORS, dtype=np.float32)
