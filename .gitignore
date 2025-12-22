@@ -1,7 +1,9 @@
 # Raw experimental data_epoxy
 scripts/tensile/data/*
+scripts/FTIR/data/*
+scripts/tga/INFO/*
+scripts/tga/tga_friedman/data/*
 !scripts/tensile/data/.gitkeep
-!scripts/tensile/data/overrides.csv
 
 # Output files (reports, plots, etc.)
 scripts/tensile/out/*
