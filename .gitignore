@@ -1,6 +1,6 @@
 # Raw experimental data_epoxy
 scripts/tensile/data/*
-scripts/FTIR/data/*
+scripts/FTIR/data/
 scripts/FTIR/data/akrileta_rapsu_ella.csv
 scripts/tga/INFO/*
 scripts/tga/tga_friedman/data/*
