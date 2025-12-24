@@ -1,11 +1,16 @@
 import os
 import pandas as pd
 import numpy as np
-
+from scipy.signal import savgol_filter
 
 def parse_and_convert(file_path):
     """
     Parse and process a CSV file from TGA/DSC experiment.
+    ... file structure example:
+    Index, Ts, Value
+    [C], [%]
+    0, 42.3473, 100
+    ...
     - Reads CSV, renames columns, converts to numeric.
     - Calculates temperature in K, inverse T, conversion alpha, rate dalpha/dt, ln(rate).
     - Handles errors gracefully, returns empty DF on failure.
@@ -41,39 +46,61 @@ def parse_and_convert(file_path):
         df = df.dropna(how='all')
 
         # If after cleaning DF is too small, skip calculations
-        if len(df) < 2:
-            raise ValueError("DataFrame too small for calculations")
+        if len(df) < 10:
+            raise ValueError(f"DataFrame too small for calculations {len(df)}")
 
-        # Calculations
+        # Basic temperature calculation
         df["T_K"] = df["T_C"] + 273.15  # Temperature in Kelvin
         df["inv_T_K"] = 1 / df["T_K"]  # Inverse temperature in 1/K
 
+        # Time in minutes
+        df['time_min'] = df['time_s'] / 60
+
+        # Alpha calculation
         # Conversion alpha: Normalize to max mass to handle initial buoyancy effect
-        initial_mass = df['mass_percent'].max()  # Use max to handle initial mass increase
-        final_mass = df['mass_percent'].min()  # Assume min is residue
+        initial_mass = df['mass_percent'].iloc[0] # ~100%
+        final_mass = df['mass_percent'].iloc[-1]
 
         if initial_mass == final_mass:
             raise ZeroDivisionError("Initial and final mass are equal; cannot compute alpha")
 
-        df['alpha'] = (initial_mass - df['mass_percent']) / (initial_mass - final_mass)  # alpha from 0 to 1
-        # No abs or *100; alpha should be 0-1; if negative, data issue
+        df['alpha'] = abs(initial_mass - df['mass_percent']) / (initial_mass - final_mass)  # 0 to 1
+        df['alpha_percent'] = df['alpha'] * 100
 
-        df['time_min'] = df['time_s'] / 60  # Time in minutes
 
-        # Rate of conversion dalpha/dt (in 1/min)
-        df['dalpha_dt'] = np.gradient(df['alpha'], df['time_min'])
+        df['dalpha_dt'] = np.gradient(df['alpha_percent'], df['time_s'])
 
-        # Ln of rate; handle <=0 by setting NaN
-        df['ln_dalpha_dt'] = np.log(df['dalpha_dt'].where(df['dalpha_dt'] > 0, np.nan))
+
+        # window_length = 3
+        # polyorder = 3
+        # if window_length % 2 == 0:
+        #     window_length += 1
+        # if window_length > len(df):
+        #     window_length = len(df) if len(df) % 2 else len(df) - 1
+        #
+        # alpha_smooth = savgol_filter(df['alpha_percent'], window_length=window_length, polyorder=polyorder)
+        #
+        # # da/dt
+        # df['dalpha_dt'] = np.gradient(alpha_smooth, df['time_s'])
+
+
+        # ln(dalpha/dt) - only positive values (common in Friedman method)
+        df['ln_dalpha_dt'] = np.where(df['dalpha_dt'] > 0, np.log(df['dalpha_dt']), np.nan)
 
         print(f"Successfully parsed {file_path}")
-        print(df.head())  # Print head for debugging
+        # print(df.head())  # Print head for debugging
 
     except Exception as e:  # Catch all exceptions for robustness
         print(f"Could not parse or process {file_path}: {str(e)}")
         df = pd.DataFrame()  # Return empty DF on error
 
-    return df
+    # Return only existing columns safely
+    return_cols = ['time_s', 'T_C', 'T_K', 'inv_T_K', 'mass_percent',
+                   'alpha', 'alpha_percent', 'dalpha_dt', 'ln_dalpha_dt']
+    if not df.empty:
+        return df[[col for col in return_cols if col in df.columns]]
+    else:
+        return df
 
 
 def main():
@@ -96,7 +123,7 @@ def main():
                 print(f"Skipping empty result for {filename}")
                 continue
 
-            output_filename = os.path.splitext(filename)[0] + '_modified.csv'  # Add suffix for clarity
+            output_filename = os.path.splitext(filename)[0] + '_processed.csv'
             output_path = os.path.join(output_dir, output_filename)
             df.to_csv(output_path, index=False)
             print(f"Successfully converted {filename} to {output_filename}")

@@ -2,8 +2,8 @@
 scripts/tensile/data/*
 scripts/FTIR/data/
 scripts/FTIR/data/akrileta_rapsu_ella.csv
-scripts/tga/INFO/*
-scripts/tga/tga_friedman/data/*
+scripts/tga_kinetics/INFO/*
+scripts/tga_kinetics/methods/data/*
 !scripts/tensile/data/.gitkeep
 
 # Output files (reports, plots, etc.)
