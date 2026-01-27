@@ -107,8 +107,8 @@ def main():
     """
     Main function: Process all CSV files in input_dir and save to output_dir.
     """
-    input_dir = 'data_csv'
-    output_dir = 'data_modified'
+    input_dir = '../data_csv'
+    output_dir = '../data_modified'
     os.makedirs(output_dir, exist_ok=True)  # Create output dir if not exists
 
     for filename in os.listdir(input_dir):

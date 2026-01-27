@@ -176,8 +176,8 @@ if __name__ == '__main__':
         input_dir='../data_modified',
         output_dir='../kinetics_results',
         alpha_start=0.05,
-        alpha_end=0.90,
-        alpha_step=0.05,
+        alpha_end=0.75,
+        alpha_step=0.025,
         alpha_tolerance=0.03,
         save_plots=True,
         save_csv=True

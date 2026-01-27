@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 import re
-import sys
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Literal
 
@@ -29,6 +29,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 # ----------------------------- Settings ------------------------------------
@@ -429,12 +436,40 @@ def plot_overlay_html_grouped(curves: List[Tuple[str, str, pd.DataFrame]], out_p
 # ----------------------------- Pipeline ------------------------------------
 
 def match_geometry(geometry_idx: Dict[str, Geometry], filename_stem: str) -> Tuple[str, Geometry]:
-    """Match a geometry row by checking if specimen id is a substring of filename stem."""
-    for sid, geom in geometry_idx.items():
+    """
+    Строгое сопоставление ID и файла.
+    Проверяет, что число недель в ID совпадает с числом недель в файле.
+    """
+    # 1. Прямое совпадение
+    if filename_stem in geometry_idx:
+        return filename_stem, geometry_idx[filename_stem]
+
+    # Вытаскиваем число недель из названия ФАЙЛА (напр. '12')
+    file_weeks_match = re.search(r"(\d+)\s*week", filename_stem.lower())
+    file_weeks = file_weeks_match.group(1) if file_weeks_match else None
+
+    # Сортируем по длине (хорошая практика)
+    sorted_sids = sorted(geometry_idx.keys(), key=len, reverse=True)
+
+    for sid in sorted_sids:
         if sid and sid in filename_stem:
-            return sid, geom
-    # Fallback: use filename stem and first geometry
+            # Вытаскиваем число недель из ID базы (напр. '2')
+            sid_weeks_match = re.search(r"(\d+)\s*week", sid.lower())
+            sid_weeks = sid_weeks_match.group(1) if sid_weeks_match else None
+
+            # ГЛАВНАЯ ПРОВЕРКА:
+            # Если в обоих именах есть недели, они должны быть строго одинаковыми.
+            # Это не даст '2weeks' привязаться к '12weeks'.
+            if file_weeks and sid_weeks and file_weeks != sid_weeks:
+                continue
+
+            actual_geom = geometry_idx[sid]
+            logger.info(f"  [Match] Файл '{filename_stem}' -> найден ID '{sid}'")
+            return sid, actual_geom
+
+    # 3. Если ничего не нашли
     first_sid = next(iter(geometry_idx.keys()))
+    logger.error(f"  [MISS] Не найдено соответствие для '{filename_stem}'")
     return filename_stem, geometry_idx[first_sid]
 
 
