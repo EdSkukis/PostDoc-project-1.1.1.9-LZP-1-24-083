@@ -281,7 +281,7 @@ def bar_delta_vs_ref(
 # ---------- main ----------
 
 def main() -> None:
-    default_base = "./mnt/E/outputs"
+    default_base = "./mnt/G/outputs"
 
     # путь к summary
     if len(sys.argv) >= 2:

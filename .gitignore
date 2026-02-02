@@ -1,7 +1,10 @@
 # Raw experimental data_epoxy
 scripts/tensile/data/*
+scripts/FTIR/data/
+scripts/FTIR/data/akrileta_rapsu_ella.csv
+scripts/tga_kinetics/INFO/*
+scripts/tga_kinetics/methods/data/*
 !scripts/tensile/data/.gitkeep
-!scripts/tensile/data/overrides.csv
 
 # Output files (reports, plots, etc.)
 scripts/tensile/out/*
