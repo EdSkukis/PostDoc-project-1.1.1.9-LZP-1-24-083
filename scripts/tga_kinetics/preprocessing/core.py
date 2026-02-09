@@ -1,135 +1,120 @@
 import os
+import logging
 import pandas as pd
 import numpy as np
-from scipy.signal import savgol_filter
+from pathlib import Path
 
-def parse_and_convert(file_path):
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("preprocessing.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("Preprocessing")
+
+
+def parse_and_convert(file_path: Path):
     """
-    Parse and process a CSV file from TGA/DSC experiment.
-    ... file structure example:
-    Index, Ts, Value
-    [C], [%]
-    0, 42.3473, 100
-    ...
-    - Reads CSV, renames columns, converts to numeric.
-    - Calculates temperature in K, inverse T, conversion alpha, rate dalpha/dt, ln(rate).
-    - Handles errors gracefully, returns empty DF on failure.
+    Устойчивый парсинг файла с детальным логированием ошибок.
     """
-    df = None  # Initialize to None for error handling
     try:
-        # Read CSV; assume first row is data or skip if needed
+        # Проверка размера файла перед чтением
+        if file_path.stat().st_size == 0:
+            logger.warning(f"Файл пуст: {file_path.name}")
+            return pd.DataFrame()
+
         df = pd.read_csv(file_path)
 
-        # Check if DF is empty
         if df.empty:
-            raise ValueError("Empty DataFrame after reading CSV")
+            logger.warning(f"Данные не найдены в {file_path.name}")
+            return pd.DataFrame()
 
-        # Drop first row if it's metadata (e.g., units); adjust if not needed
+        # Очистка заголовков (убираем лишние пробелы)
+        df.columns = df.columns.str.strip()
+
+        # Валидация колонок
+        required = {"Ts", "Value", "Index"}
+        if not required.issubset(df.columns):
+            logger.error(f"В {file_path.name} отсутствуют колонки: {required - set(df.columns)}")
+            return pd.DataFrame()
+
+        # Пропускаем строку с единицами измерения, если она не числовая
         df = df.iloc[1:].reset_index(drop=True)
 
-        # Check required columns exist
-        required_cols = ["Ts", "Value", "Index"]
-        if not all(col in df.columns for col in required_cols):
-            raise KeyError(f"Missing required columns: {set(required_cols) - set(df.columns)}")
-
-        # Rename columns for clarity
+        # Переименование
         df = df.rename(columns={
-            "Ts": "T_C",  # Temperature in °C
-            "Value": "mass_percent",  # Mass in %
-            "Index": "time_s",  # Time in seconds
+            "Ts": "T_C",
+            "Value": "mass_percent",
+            "Index": "time_s"
         })
 
-        # Convert all columns to numeric, coerce errors to NaN
-        df = df.apply(pd.to_numeric, errors='coerce')
+        # Конвертация в числа с отловом некорректных значений
+        for col in ["T_C", "mass_percent", "time_s"]:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        # Drop rows with all NaN (if any)
-        df = df.dropna(how='all')
+        df = df.dropna(subset=["T_C", "mass_percent", "time_s"])
 
-        # If after cleaning DF is too small, skip calculations
         if len(df) < 10:
-            raise ValueError(f"DataFrame too small for calculations {len(df)}")
+            logger.warning(f"Слишком мало валидных строк в {file_path.name} ({len(df)})")
+            return pd.DataFrame()
 
-        # Basic temperature calculation
-        df["T_K"] = df["T_C"] + 273.15  # Temperature in Kelvin
-        df["inv_T_K"] = 1 / df["T_K"]  # Inverse temperature in 1/K
+        # Расчеты
+        df["T_K"] = df["T_C"] + 273.15
+        df["inv_T_K"] = 1 / df["T_K"]
 
-        # Time in minutes
-        df['time_min'] = df['time_s'] / 60
-
-        # Alpha calculation
-        # Conversion alpha: Normalize to max mass to handle initial buoyancy effect
-        initial_mass = df['mass_percent'].iloc[0] # ~100%
+        initial_mass = df['mass_percent'].iloc[0]
         final_mass = df['mass_percent'].iloc[-1]
 
-        if initial_mass == final_mass:
-            raise ZeroDivisionError("Initial and final mass are equal; cannot compute alpha")
+        mass_range = initial_mass - final_mass
+        if abs(mass_range) < 1e-6:
+            logger.error(f"Нулевое изменение массы в {file_path.name}, расчет alpha невозможен.")
+            return pd.DataFrame()
 
-        df['alpha'] = abs(initial_mass - df['mass_percent']) / (initial_mass - final_mass)  # 0 to 1
+        df['alpha'] = abs(initial_mass - df['mass_percent']) / mass_range
         df['alpha_percent'] = df['alpha'] * 100
 
+        # dalpha/dt с обработкой деления на ноль в dt
+        dt = np.gradient(df['time_s'])
+        dt[dt == 0] = np.nan  # Избегаем inf
+        df['dalpha_dt'] = np.gradient(df['alpha_percent']) / dt
 
-        df['dalpha_dt'] = np.gradient(df['alpha_percent'], df['time_s'])
-
-
-        # window_length = 3
-        # polyorder = 3
-        # if window_length % 2 == 0:
-        #     window_length += 1
-        # if window_length > len(df):
-        #     window_length = len(df) if len(df) % 2 else len(df) - 1
-        #
-        # alpha_smooth = savgol_filter(df['alpha_percent'], window_length=window_length, polyorder=polyorder)
-        #
-        # # da/dt
-        # df['dalpha_dt'] = np.gradient(alpha_smooth, df['time_s'])
-
-
-        # ln(dalpha/dt) - only positive values (common in Friedman method)
+        # Логарифм скорости
         df['ln_dalpha_dt'] = np.where(df['dalpha_dt'] > 0, np.log(df['dalpha_dt']), np.nan)
 
-        print(f"Successfully parsed {file_path}")
-        # print(df.head())  # Print head for debugging
-
-    except Exception as e:  # Catch all exceptions for robustness
-        print(f"Could not parse or process {file_path}: {str(e)}")
-        df = pd.DataFrame()  # Return empty DF on error
-
-    # Return only existing columns safely
-    return_cols = ['time_s', 'T_C', 'T_K', 'inv_T_K', 'mass_percent',
-                   'alpha', 'alpha_percent', 'dalpha_dt', 'ln_dalpha_dt']
-    if not df.empty:
-        return df[[col for col in return_cols if col in df.columns]]
-    else:
         return df
 
+    except Exception as e:
+        logger.exception(f"Критическая ошибка при обработке {file_path.name}: {str(e)}")
+        return pd.DataFrame()
 
-def main():
+
+def process_all_raw_files(input_dir='data_csv', output_dir='data_modified'):
     """
-    Main function: Process all CSV files in input_dir and save to output_dir.
+    Основной цикл с Pathlib для безопасной работы на сервере.
     """
-    input_dir = '../data_csv'
-    output_dir = '../data_modified'
-    os.makedirs(output_dir, exist_ok=True)  # Create output dir if not exists
+    input_path = Path(input_dir)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    for filename in os.listdir(input_dir):
-        if not filename.endswith('.csv'):
-            print(f"Skipping non-CSV file: {filename}")
-            continue
+    processed_list = []
 
-        file_path = os.path.join(input_dir, filename)
-        try:
-            df = parse_and_convert(file_path)
-            if df.empty:
-                print(f"Skipping empty result for {filename}")
-                continue
+    if not input_path.exists():
+        logger.error(f"Входная директория не найдена: {input_dir}")
+        return []
 
-            output_filename = os.path.splitext(filename)[0] + '_processed.csv'
-            output_path = os.path.join(output_dir, output_filename)
-            df.to_csv(output_path, index=False)
-            print(f"Successfully converted {filename} to {output_filename}")
-        except Exception as e:
-            print(f"Could not convert {filename}: {str(e)}")
+    files = list(input_path.glob("*.csv"))
+    logger.info(f"Найдено файлов для обработки: {len(files)}")
 
+    for file_path in files:
+        df = parse_and_convert(file_path)
 
-if __name__ == '__main__':
-    main()
+        if not df.empty:
+            out_name = f"{file_path.stem}_processed.csv"
+            df.to_csv(output_path / out_name, index=False)
+            processed_list.append(out_name)
+            logger.info(f"Успешно обработан: {out_name}")
+
+    return processed_list
