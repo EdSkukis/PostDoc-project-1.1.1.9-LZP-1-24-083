@@ -24,6 +24,18 @@ scp -i $KEY ./Dockerfile $USER@$SERVER_IP:$REMOTE_DIR/
 scp -i $KEY ./docker-compose.yml $USER@$SERVER_IP:$REMOTE_DIR/
 scp -i $KEY ./requirements.txt $USER@$SERVER_IP:$REMOTE_DIR/
 
-echo "Copying complete!"
-echo "🔗 Now go to the server: ssh -i $KEY $USER@$SERVER_IP"
-echo "🛠 And run it: cd $REMOTE_DIR && docker-compose up -d --build"
+echo "🛠 Restarting Docker container on server..."
+ssh -i $KEY $USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down && docker compose up -d --build"
+
+echo "⏳ Waiting for launch API (5 сек)..."
+sleep 5
+
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$SERVER_IP:8000/health)
+
+if [ "$HTTP_STATUS" -eq 200 ]; then
+    echo "✅ Deployment successful! API is working (Status 200)."
+    echo "🌍 Swagger UI: http://$SERVER_IP:8000/docs"
+else
+    echo "❌ ERROR: The server responded with a status $HTTP_STATUS or unavailable."
+    echo "📝 Check the logs with the command: ssh -i $KEY $USER@$SERVER_IP 'docker logs tga-container'"
+fi
