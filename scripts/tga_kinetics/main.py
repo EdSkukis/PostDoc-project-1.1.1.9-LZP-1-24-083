@@ -266,6 +266,7 @@ async def analyze_friedman(config: AnalysisConfig, request: Request):
         "file_urls": links_info["urls"]
     }
 
+
 @app.post("/api/v1/analyze/ozawa", tags=["Kinetics"])
 async def analyze_ozawa(config: AnalysisConfig, request: Request):
     """
