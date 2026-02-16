@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  kinetics-api:
+    build: .
+    container_name: tga-container
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data_csv:/app/data_csv
+      - ./kinetics_results:/app/kinetics_results
+      - ./data_modified:/app/data_modified
+    restart: always

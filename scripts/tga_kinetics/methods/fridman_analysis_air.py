@@ -2,8 +2,16 @@ import os
 import pandas as pd
 import numpy as np
 from scipy.stats import linregress
-import matplotlib.pyplot as plt
 import re
+from pathlib import Path
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_MODIFIED = BASE_DIR / "data_modified"
+KINETICS_RESULTS = BASE_DIR / "kinetics_results"
 
 R = 8.314462618
 
@@ -14,8 +22,8 @@ def extract_beta_from_filename(filename):
     return None
 
 def run_friedman_analysis(
-    input_dir='../data_modified',
-    output_dir='../kinetics_results',
+    input_dir=DATA_MODIFIED,
+    output_dir=KINETICS_RESULTS,
     alpha_start=0.05,
     alpha_end=0.96,
     alpha_step=0.05,
@@ -27,7 +35,7 @@ def run_friedman_analysis(
     Метод Фридмана с настраиваемыми параметрами.
     """
     try:
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         data = {}
         sample_name = None
 
@@ -167,13 +175,16 @@ def run_friedman_analysis(
             plt.close()
             files_saved['ea_plot'] = ea_plot_path
 
+        # Формируем сообщение о результате
+        msg = f"Friedman analysis completed with {len(alpha_levels)} levels"
+
         return {
             'status': 'success',
-            'sample_name': sample_name,
-            'ea_df': ea_df,
-            'points_df': points_df,
+            'sample_name': str(sample_name) if sample_name else "Unknown",
+            'ea_df': ea_df.to_dict(orient='records'),
+            'points_df': points_df.to_dict(orient='records') if not points_df.empty else [],
             'files': files_saved,
-            'message': f'Friedman analysis completed with {len(alpha_levels)} levels'
+            'message': msg
         }
 
     except Exception as e:
@@ -181,8 +192,6 @@ def run_friedman_analysis(
 
 if __name__ == '__main__':
     result = run_friedman_analysis(
-        input_dir='../data_modified',
-        output_dir='../kinetics_results',
         alpha_start=0.05,
         alpha_end=0.85,
         alpha_step=0.05,
