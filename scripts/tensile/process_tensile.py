@@ -559,6 +559,13 @@ def process_experiment_from_workbook(
     dlf_meta_col = meta_cols.get(M_DLF.lower())
     dlf_meta_val = pd.to_numeric(meta_row[dlf_meta_col], errors='coerce') if dlf_meta_col else np.nan
 
+    time_at_rp02 = float("nan")
+    if rp02 and np.isfinite(rp02[1]):
+        strain_at_rp02 = rp02[1]
+        # Find index of the strain value closest to strain_at_rp02
+        idx_rp02 = (df_calc['Strain'] - strain_at_rp02).abs().idxmin()
+        time_at_rp02 = df_calc.loc[idx_rp02, 'Time_s']
+
     summary = {
         "Experiment": exp_id,
         "File": excel_file_name,
@@ -568,6 +575,7 @@ def process_experiment_from_workbook(
         "E_MPa": E_MPa,
         "Rp0.2_MPa": rp02[0] if rp02 and np.isfinite(rp02[0]) else float("nan"),
         "Strain_at_Rp0.2": rp02[1] if rp02 and np.isfinite(rp02[1]) else float("nan"),
+        "Time_at_Rp0.2_s": time_at_rp02,
         "Sigma_max_MPa": sig_max,
         "Strain_at_Sigmax": eps_at,
         "FailureTime_s": t_fail,
