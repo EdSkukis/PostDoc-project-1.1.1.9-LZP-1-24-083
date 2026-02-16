@@ -157,7 +157,7 @@ def run_friedman_analysis(
             plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
-            lines_path = os.path.join(output_dir, 'friedman_lines.png')
+            lines_path = os.path.join(output_dir, f'{sample_name}_friedman_lines.png')
             plt.savefig(lines_path, dpi=300)
             plt.close()
             files_saved['lines_plot'] = lines_path
@@ -170,7 +170,7 @@ def run_friedman_analysis(
             plt.title(f'Activation Energy vs Conversion — {sample_name} (Friedman)')
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
-            ea_plot_path = os.path.join(output_dir, 'friedman_Ea_vs_alpha.png')
+            ea_plot_path = os.path.join(output_dir, f'{sample_name}_friedman_Ea_vs_alpha.png')
             plt.savefig(ea_plot_path, dpi=300)
             plt.close()
             files_saved['ea_plot'] = ea_plot_path

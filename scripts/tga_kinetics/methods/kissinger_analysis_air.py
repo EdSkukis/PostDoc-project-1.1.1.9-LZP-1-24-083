@@ -84,7 +84,7 @@ def run_kissinger_analysis(
             plt.title(f'Kissinger Plot — {sample_name}')
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
-            plot_path = os.path.join(output_dir, 'kissinger_plot.png')
+            plot_path = os.path.join(output_dir, f'{sample_name}_kissinger_plot.png')
             plt.savefig(plot_path, dpi=300)
             plt.close()
             files_saved['plot'] = plot_path

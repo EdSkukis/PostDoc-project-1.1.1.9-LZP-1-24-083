@@ -64,8 +64,8 @@ def get_result_links(request: Request, sample_name: str, method_prefix: str) -> 
     # Словарь ожидаемых файлов для конкретного метода
     # Добавляем сюда логику именования, которую используют ваши .py скрипты
     expected_files = {
-        "lines_plot": f"{method_prefix}_lines.png",
-        "ea_plot": f"{method_prefix}_Ea_vs_alpha.png",
+        "lines_plot": f"{sample_name}_{method_prefix}_lines.png",
+        "ea_plot": f"{sample_name}_{method_prefix}_Ea_vs_alpha.png",
         "data_csv": f"{sample_name}_{method_prefix}_Ea.csv"
     }
 
@@ -86,12 +86,27 @@ def get_result_links(request: Request, sample_name: str, method_prefix: str) -> 
 
 @app.post("/api/v1/upload", tags=["Data Preparation"])
 async def upload_tga_files(files: List[UploadFile] = File(...)):
-    """Uploading one or more CSV files for analysis"""
+    """Uploading one or more TXT files for analysis from TGA equipment
+    File name have to consist of SpecimensName_xmin.txt
+    where x is [5, 10, 15 or 20]
+    EXAMPLE:
+                                                                06.02.2026 15:48
+________________________________________________________________________________
+
+
+
+Curve Name:
+  $!TGA_RG_PBAT (5C/min) N2
+  Sample Weight
+Curve Values:
+          Index             Ts          Value
+                          [�C]            [%]
+    """
     uploaded_files = []
     errors = []
 
     for file in files:
-        if not file.filename.endswith('.csv'):
+        if not file.filename.endswith('.txt'):
             errors.append(f"File {file.filename} skipped: only CSV allowed")
             continue
 
@@ -220,16 +235,39 @@ async def analyze_kissinger(request: Request):
         logger.error(f"Kissinger's method returned an error.: {result.get('message')}")
         raise HTTPException(status_code=500, detail=result.get('message'))
 
-    # 2. Проверка файлов (префикс 'kissinger')
     sample_name = result.get('sample_name', 'result')
-    links_info = get_result_links(request, sample_name, "kissinger")
+    expected_files = {
+        "kissinger_plot": f"{sample_name}_kissinger_lines.png",
+        "data_csv": f"{sample_name}_kissinger_Ea.csv"
+    }
 
+    host_url = f"{request.url.scheme}://{request.url.netloc}"
+    base_url = f"{host_url}/api/v1/results/download"
+    results_dir = Path("kinetics_results")
+
+    file_urls = {}
+    missing = []
+
+    for key, fname in expected_files.items():
+        if (results_dir / fname).exists():
+            file_urls[key] = f"{base_url}/{fname}"
+        else:
+            missing.append(fname)
+    if missing:
+        logger.warning(f"Kissinger: missing files {missing}")
+        return {
+            "status": "partial_success",
+            "message": "The calculation is complete, but not all result files have been created..",
+            "missing": missing,
+            "file_urls": file_urls
+        }
+
+    logger.info(f"Kissinger's method has been successfully completed for{sample_name}")
     return {
-        "status": "success" if not links_info["missing"] else "partial_success",
-        "message": result.get('message'),
+        "status": "success",
+        "message": "The Kissinger method was successfully completed. The graph and data are available.",
         "sample_name": sample_name,
-        "file_urls": links_info["urls"],
-        "missing": links_info["missing"]
+        "file_urls": file_urls
     }
 
 
@@ -326,31 +364,41 @@ async def download_all_results():
     """
     Packs all files from the kinetics_results folder into a single ZIP archive and gives it to the user.
     """
-    results_dir = Path("kinetics_results")
+    folders_to_include = {
+        "results": Path("kinetics_results"),
+        "processed_data": Path("data_modified")
+    }
 
-    # Проверяем, есть ли вообще файлы
-    files = [f for f in results_dir.glob("*") if f.is_file()]
-    if not files:
-        logger.warning("Attempt to download empty results archive.")
-        raise HTTPException(status_code=404, detail="No result files found to archive.")
-
-    # Создаем ZIP в памяти
     zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for file in files:
-            # Записываем файл в архив, используя только его имя (без путей)
-            zip_file.write(file, arcname=file.name)
+    files_found = 0
 
-    # Перематываем буфер в начало, чтобы StreamingResponse мог его прочитать
-    zip_buffer.seek(0)
+    try:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for folder_name, folder_path in folders_to_include.items():
+                if folder_path.exists():
+                    for file_path in folder_path.glob("*"):
+                        if file_path.is_file():
+                            # Сохраняем структуру внутри архива: folder/filename
+                            zip_file.write(str(file_path), arcname=f"{folder_name}/{file_path.name}")
+                            files_found += 1
 
-    logger.info(f"An archive has been created from {len(files)} files.")
+        if files_found == 0:
+            logger.warning("Attempt to download an empty archive.")
+            raise HTTPException(status_code=404, detail="No files found to archive.")
 
-    return StreamingResponse(
-        zip_buffer,
-        media_type="application/x-zip-compressed",
-        headers={"Content-Disposition": "attachment; filename=all_results.zip"}
-    )
+        zip_buffer.seek(0)
+
+        logger.info(f"A common archive has been created: {files_found} files from results and processing.")
+
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/x-zip-compressed",
+            headers={"Content-Disposition": "attachment; filename=tga_full_results.zip"}
+        )
+    except Exception as e:
+        logger.error(f"Error creating full archive: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal archiving error: {str(e)}")
+
 
 @app.get("/health")
 async def health_check():
