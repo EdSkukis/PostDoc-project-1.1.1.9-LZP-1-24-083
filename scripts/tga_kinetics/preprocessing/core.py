@@ -73,7 +73,9 @@ def parse_and_convert(file_path: Path):
         df['dalpha_dt'] = np.gradient(df['alpha_percent']) / dt
 
         # Логарифм скорости (нужен для метода Фридмана)
-        df['ln_dalpha_dt'] = np.where(df['dalpha_dt'] > 0, np.log(df['dalpha_dt']), np.nan)
+        epsilon = 1e-10
+        df['ln_dalpha_dt'] = np.log(df['dalpha_dt'].where(df['dalpha_dt'] > epsilon))
+        df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=['ln_dalpha_dt'])
 
         return df
 
@@ -120,3 +122,6 @@ def process_all_raw_files(input_dir='data_csv', output_dir='data_modified'):
             logger.error(f"Не удалось обработать файл {file_path.name}: {e}")
 
     return processed_list
+
+if __name__ == "__main__":
+    results = process_all_raw_files('data_csv', 'data_modified')
