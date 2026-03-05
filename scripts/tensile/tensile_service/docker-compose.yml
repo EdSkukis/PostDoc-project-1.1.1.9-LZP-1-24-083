@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  tensile_api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./storage:/app/storage
+    restart: always

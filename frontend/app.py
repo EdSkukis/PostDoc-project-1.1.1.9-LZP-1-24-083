@@ -8,10 +8,10 @@ st.title("Exp Lab Platform — MVP")
 tab_proj, tab_mat, tab_samp, tab_exp = st.tabs(["Projects", "Materials", "Samples", "Experiments"])
 
 with tab_proj:
-    st.subheader("Create project")
+    st.subheader("Create tensile_service")
     code = st.text_input("Project code", key="p_code")
     name = st.text_input("Project name", key="p_name")
-    if st.button("Create project"):
+    if st.button("Create tensile_service"):
         r = requests.post(f"{API}/projects/", json={"code": code, "name": name})
         st.write(r.status_code, r.json() if r.content else {})
     if st.button("Refresh projects"):
