@@ -31,3 +31,4 @@ venv/
 Thumbs.db
 
 GEMINI.md
+/scripts/tensile/tensile_service/storage/
