@@ -44,6 +44,8 @@ logger = logging.getLogger(__name__)
 #   "strain": absolute strain values (e.g., 0.005..0.025)
 #   "force" : fractions of Fmax      (e.g., 0.05..0.25)
 WINDOW_MODE: Literal["strain", "force"] = "strain"
+e_start = float(0.005)
+e_end = float(0.025)
 
 # Draw individual PNGs per specimen
 MAKE_INDIVIDUAL_PNG = True
@@ -94,17 +96,33 @@ def read_info_table(info_csv_path: str) -> pd.DataFrame:
     """Read geometry and modulus-window table.
     Expect first row to contain units. Actual data starts from row 1.
     EU decimal commas are converted to dots. Numeric columns are coerced.
+    Handles multiple file encodings automatically.
     """
-    raw = pd.read_csv(info_csv_path)
+    # Пробуем разные кодировки по очереди
+    encodings_to_try = ['utf-8', 'windows-1251', 'latin1']
+    raw = None
+
+    for enc in encodings_to_try:
+        try:
+            raw = pd.read_csv(info_csv_path, encoding=enc)
+            break  # Если прочиталось без ошибки, выходим из цикла
+        except UnicodeDecodeError:
+            continue
+
+    if raw is None:
+        raise ValueError(f"Не удалось прочитать {info_csv_path}. Проверьте кодировку файла.")
+
     df = raw.iloc[1:].copy().reset_index(drop=True)
     for col in df.columns:
         df[col] = df[col].astype(str).str.replace(",", ".", regex=False).str.strip()
+
     num_cols = ['Span', 'b0', 'a0', 'S0',
                 "Begin of Young's modulus determination",
                 "End of Young's modulus determination"]
     for col in num_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
+
     df['Specimen ID'] = df['Specimen ID'].astype(str).str.strip()
     return df
 
@@ -119,8 +137,6 @@ def build_geometry_index(info_df: pd.DataFrame) -> Dict[str, Geometry]:
 
         # e_start = float(row["Begin of Young's modulus determination"])
         # e_end   = float(row["End of Young's modulus determination"])
-        e_start = float(0.005)
-        e_end   = float(0.025)
         # WINDOW_MODE == "strain": values are absolute strain; keep as-is
 
         idx[sid] = Geometry(
@@ -313,13 +329,36 @@ def decimate(df: pd.DataFrame, max_pts: int = 2000) -> pd.DataFrame:
 def infer_group(name: str) -> str:
     """Infer group label from specimen id or filename stem."""
     n = name.lower()
+
     if "ref" in n:
         return "ref"
+
+    ph_part = ""
     m = re.search(r"ph[-_]?(\d+)", n, flags=re.I)
     if m:
         val = m.group(1)
-        if val in {"1","4","7","10","12"}:
-            return f"pH-{val}"
+        if val in {"1", "4", "7", "10", "12"}:
+            ph_part = f"pH-{val}"
+
+    is_dry = any(kw in n for kw in ["dry", "dried", "сух"])
+
+    if is_dry:
+        time_match = re.search(r"(\d+)\s*(w|week|m|month|нед|мес)", n)
+        time_part = "time?"
+
+        if time_match:
+            num = time_match.group(1)
+            unit = 'w' if time_match.group(2).startswith(('w', 'нед')) else 'm'
+            time_part = f"{num}{unit}"
+
+        if ph_part:
+            return f"{time_part}-{ph_part}-dried"
+        else:
+            return f"{time_part}-dried"
+
+    if ph_part:
+        return ph_part
+
     return "unknown"
 
 
@@ -386,7 +425,9 @@ def plot_overlay_html_grouped(curves: List[Tuple[str, str, pd.DataFrame]], out_p
     """
     fig = go.Figure()
 
-    groups = ["ref", "pH-1", "pH-4", "pH-7", "pH-10", "pH-12", "unknown"]
+    unique_groups = set(group_label for group_label, _, _ in curves)
+    groups = sorted(list(unique_groups), key=lambda x: (x != 'ref', x))
+
     for g in groups:
         # Dummy trace to show legend entry per group
         fig.add_trace(go.Scatter(

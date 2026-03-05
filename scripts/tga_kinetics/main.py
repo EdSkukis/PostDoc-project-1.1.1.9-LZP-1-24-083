@@ -484,7 +484,7 @@ async def download_result(filename: str):
 @app.get("/api/v1/results/download-all", tags=["Storage"])
 async def download_all_results():
     """
-    ### Download the full project archive (ZIP)
+    ### Download the full tensile_service archive (ZIP)
 
     The method automatically collects analysis results and preprocessed data into a single structured archive.
     ---
@@ -541,7 +541,7 @@ async def clear_uploads():
     ### Completely clear the uploads area (Reset)
 
    This method deletes all downloaded files and intermediate processing results. Use it before starting
-   a new project or series of experiments.
+   a new tensile_service or series of experiments.
     ---
     ### What will be deleted:
     1. **data_csv/**: All original `.txt` and `.csv` files uploaded via `/upload`.
